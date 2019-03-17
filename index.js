@@ -1,7 +1,6 @@
 //bot variable declarations
 const Discord = require("discord.js");
 const client = new Discord.Client();
-const config = require("./config.json");
 
 let prefix = process.env.PREFIX;
 var roles = [];
