@@ -1,11 +1,10 @@
 //bot variable declarations
 const Discord = require("discord.js");
 const discordClient = new Discord.Client();
-const config = require("./config.json");
 const { Client } = require('pg');
 
 const client = new Client({
-  connectionString: config.DATABASE_URL,
+  connectionString: process.env.DATABASE_URL,
   ssl: true,
 });
 
@@ -30,7 +29,7 @@ let prefix = process.env.PREFIX;
 var roles = [];
 
 //connects the bot to the discord users
-client.login(process.env.BOT_TOKEN);
+discordClient.login(process.env.BOT_TOKEN);
 
 //bot logged in successfully and it's ready to be used
 discordClient.on("ready", () => {
