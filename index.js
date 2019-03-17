@@ -3,10 +3,10 @@ const Discord = require("discord.js");
 const client = new Discord.Client();
 const config = require("./config.json");
 
-let prefix = config.prefix;
+let prefix = process.env.PREFIX;
 var roles = [];
 //connects the bot to the discord users
-client.login(config.token);
+client.login(process.env.BOT_TOKEN);
 
 //bot logged in successfully and it's ready to be used
 client.on("ready", () => {
