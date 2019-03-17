@@ -1,11 +1,12 @@
 //bot variable declarations
 const Discord = require("discord.js");
 const client = new Discord.Client();
+const config = require("./config.json");
 
-let prefix = process.env.PREFIX;
+let prefix = config.prefix;
 var roles = [];
 //connects the bot to the discord users
-client.login(process.env.BOT_TOKEN);
+client.login(config.token);
 
 //bot logged in successfully and it's ready to be used
 client.on("ready", () => {
