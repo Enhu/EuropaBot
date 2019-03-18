@@ -85,7 +85,7 @@ discordClient.on("message", (message) => {
           console.error(e.stack)
         })
     }else{
-      message.channel.send("``!setrole [role]``"); 
+      message.channel.send("```!setrole [role]``` \nAdds roles to the list."); 
     }
   }
 
@@ -125,7 +125,7 @@ discordClient.on("message", (message) => {
           console.error(e.stack)
         })
     }else{
-      message.channel.send("``!removerole [role]``"); 
+      message.channel.send("```!removerole [role]``` \nRemoves roles from the list."); 
     }
   }
 
@@ -149,10 +149,18 @@ discordClient.on("message", (message) => {
           }
       }
     }else{
-      message.channel.send("!iam [role]"); 
-      /*for (let name of roles.rolename) {
-        message.channel.send(JSON.stringify(name));
-      }*/
+      let serverRoles = [];
+      for (let item of roles) {
+        if(message.guild.id == item.serverid){
+          serverRoles.push(item.rolename);
+        }
+      }
+      if(serverRoles.length > 0){
+        message.channel.send("```!iam [role] \nAdd yourself a role if available.\nAvailable roles are: " + serverRoles.toString() + "```"); 
+      }else{
+        message.channel.send("```!iam [role] \nAdd yourself a role if available.\nThere no available roles to add. Add roles to the list with !setrole [role]```");
+      }
+      
     }
   }
 
@@ -176,8 +184,23 @@ discordClient.on("message", (message) => {
           }
       }
     }else{
-      message.channel.send("``!iamn [role]``"); 
+      let userRoles = [];
+      for (let item of roles) {
+        if(message.member.roles.find(role => role.name === item.rolename) && message.guild.id == item.serverid){
+          userRoles.push(item.rolename);
+        }
+      }
+      if(userRoles.length > 0){
+        message.channel.send("```!iamn [role] \nRemove yourself from a role.\nYour current roles are: " + userRoles.toString() + "```"); 
+      }else{
+        message.channel.send("```!iamn [role] \nRemove yourself from a role.\nYou don't have any roles I can remove.```");
+      }
+      
     }
+  }
+
+  if(command === "help"){
+    message.author.send("```Available commands:\n\n!setrole [role]: Allows you to set an auto role.\n!removerole [role]: Allows you to remove an auto role.\n!iam [role]: Allows you to get a role.\n!iamn [role]: Allows you to remove a role.```");
   }
 });
 
