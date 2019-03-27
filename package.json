@@ -27,7 +27,9 @@
   "homepage": "https://github.com/synicalsyntax/discord.js-heroku#readme",
   "dependencies": {
     "discord.js": "11.4.2",
+    "node-opus": "0.3.1",
     "pg": "7.9.0",
-    "pkg": "^4.3.7"
+    "pkg": "^4.3.7",
+    "ytdl-core": "0.29.1"
   }
 }

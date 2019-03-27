@@ -3,14 +3,17 @@ const Discord = require("discord.js");
 const discordClient = new Discord.Client();
 const config = require("./config.json");
 const { Client } = require('pg');
+const ytdl = require('ytdl-core');
 
 const client = new Client({
   connectionString: config.DATABASE_URL,
   ssl: true,
 });
 
+//connect to postgresql db
 client.connect();
 
+//load server data (roles for now)
 const query = {
   text: 'SELECT * FROM roles;',
 }
@@ -26,10 +29,11 @@ function loadRoles(){
 
 loadRoles();
 
-let prefix = config.prefix;
+//variable declarations
+let prefix = config.prefix; //optimize for dynamic prefix
 var roles = [];
 
-//connects the bot to the discord users
+//connects the bot
 discordClient.login(config.token);
 
 //bot logged in successfully and it's ready to be used
@@ -37,10 +41,13 @@ discordClient.on("ready", () => {
   console.log(`Ready to server in ${discordClient.channels.size} channels on ${discordClient.guilds.size} servers, for a total of ${discordClient.users.size} users.`);
 });
 
-discordClient.on("message", (message) => {
+discordClient.on("message", async (message) => {
 
   //any message done by the bot will return nothing
   if(message.author.bot) return;
+
+  //will only respond if talking in a discord server
+  if (!message.guild) return;
   
   //for performance purposes
   if (!message.content.startsWith(prefix)) return;
@@ -49,13 +56,16 @@ discordClient.on("message", (message) => {
   const command = args.shift().toLowerCase();
   const substr = message.content.substr((prefix + command + " ").length);
 
+//
+// SELF ASSIGNABLE ROLES
+//
+
   //adds a role to the list so user can self assign them
   if(command === "setrole"){
     if(substr != ''){
       const query = {
         text: 'SELECT * FROM roles;',
       }
-      // promise
       client.query(query)
         .then(res => {
           roles = res.rows;
@@ -66,8 +76,6 @@ discordClient.on("message", (message) => {
             }else{
               const text = 'INSERT INTO roles(roleName, serverID) VALUES($1, $2)'
               const values = [substr, serverID]
-              
-              // promise
               client.query(text, values)
                 .then(res => {
                   message.channel.send("Role ``" + substr + "`` successfully added to the list.")
@@ -78,14 +86,14 @@ discordClient.on("message", (message) => {
                 })
             } 
         }else{
-            message.channel.send("I didn't find any role called ``" + substr + "`` on this server.")
+            message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role on the server before using this command.")
         }
         })
         .catch(e => {
           console.error(e.stack)
         })
     }else{
-      message.channel.send("```!setrole [role]``` \nAdds roles to the list."); 
+      message.channel.send("```!setrole [role]``` \nAdds roles to the self-assignable roles list."); 
     }
   }
 
@@ -94,7 +102,6 @@ discordClient.on("message", (message) => {
       const query = {
         text: 'SELECT * FROM roles;',
       }
-      // promise
       client.query(query)
         .then(res => {
           roles = res.rows;
@@ -103,11 +110,9 @@ discordClient.on("message", (message) => {
             if(roles.some(item => item.rolename === substr) && roles.some(item => item.serverid === serverID)){
               const text = "DELETE FROM roles WHERE roleName='" + substr +"'";
               const values = [substr];
-              
-              // promise
               client.query(text)
                 .then(res => {
-                  message.channel.send("Role ``" + substr + "`` successfully deleted from the list.")
+                  message.channel.send("Role ``" + substr + "`` successfully deleted from the self-assignable roles list.")
                   loadRoles();
                 })
                 .catch(e => {
@@ -115,17 +120,17 @@ discordClient.on("message", (message) => {
                 })
                 
             }else{
-              message.channel.send("Role ``" + substr + "`` doesn't exist on the list. Try adding it with !setrole [role].")
+              message.channel.send("Role ``" + substr + "`` doesn't exist on the list. Add it to the self-assignable roles with !setrole [rolename].")
             } 
         }else{
-            message.channel.send("I didn't find any role called ``" + substr + "`` on this server.")
+            message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles with !setrole [rolename] before using this command.")
         }
         })
         .catch(e => {
           console.error(e.stack)
         })
     }else{
-      message.channel.send("```!removerole [role]``` \nRemoves roles from the list."); 
+      message.channel.send("```!removerole [role]``` \nRemoves roles from the self-assignable roles list."); 
     }
   }
 
@@ -144,7 +149,7 @@ discordClient.on("message", (message) => {
               if(message.guild.roles.find(role => role.name === substr)){
                   message.channel.send("I don't have permissions to give this role.");
               }else{
-                  message.channel.send("I didn't find any role called ``" + substr + "`` on this server.");
+                  message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles with !setrole [rolename] before using this command.");
               }
           }
       }
@@ -178,9 +183,9 @@ discordClient.on("message", (message) => {
             }
       }else{
           if(message.guild.roles.find(role => role.name === substr)){
-              message.channel.send("I don't have permissions to remove this role.");
+              message.channel.send("I don't have permissions to remove this role. Try adding it to the self-assignable roles list using !setrole [rolename]");
           }else{
-              message.channel.send("I didn't find any role called ``" + substr + "`` on this server.");
+            message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles list with !setrole [rolename] before using this command.");
           }
       }
     }else{
@@ -199,9 +204,77 @@ discordClient.on("message", (message) => {
     }
   }
 
+  //direct messages a user for a list of commands
   if(command === "help"){
     message.author.send("```Available commands:\n\n!setrole [role]: Allows you to set an auto role.\n!removerole [role]: Allows you to remove an auto role.\n!iam [role]: Allows you to get a role.\n!iamn [role]: Allows you to remove a role.```");
   }
+
+//
+// MUSIC PLAYER
+//
+
+//makes the bot join a channel if the user is in the voice channel (rework for permissions)
+if (command === 'join') {
+  return; //remove
+  // only try to join the sender's voice channel if they are in one themselves
+  if (message.member.voiceChannel) {
+    await message.member.voiceChannel.join();
+  } else {
+    message.reply('join a voice channel first before using this command.');
+  }
+}
+
+//makes the bot leave the channel if the user is in the voice channel
+if(command === 'leave'){
+  return; //remove
+  if (message.member.voiceChannel) {
+    await message.member.voiceChannel.leave();
+  }
+}
+
+//play the music 
+if(command === 'play'){ //TO FINISH: ADD QUEUE, AWAIT SONG TO FINISH, AUTOMATIC YOUTUBE SEARCH
+  if(substr != ''){
+    return; //remove
+    if (message.member.voiceChannel) {
+      if(message.guild.voiceConnection){
+        try {
+          connection => {
+            const stream = ytdl(substr, { filter : 'audioonly' });
+            const dispatcher = connection.playStream(stream, streamOptions);
+        }
+        } catch (error) {
+         (console.error);
+        }
+      }else{
+        const streamOptions = { seek: 0, volume: 0.7 };
+      message.member.voiceChannel.join()
+        .then(connection => {
+          const stream = ytdl(substr, { filter : 'audioonly' });
+          const dispatcher = connection.playStream(stream, streamOptions);
+      })
+      .catch(console.error);
+      }
+      
+    }
+  }
+}
+
+if(command === 'skip'){  //TODO
+
+
+}
+
+if(command === 'playlist'){ //TODO
+
+}
+
+//
+//GBF RELATED CONTENT
+//
+
+
+
 });
 
 //shows errors on console
