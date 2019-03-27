@@ -201,7 +201,8 @@ discordClient.on("message", async (message) => {
 
   //direct messages a user for a list of commands
   if(command === "help"){
-    message.author.send("```Available commands:\n\n!setrole [role]: Allows you to set an auto role.\n!removerole [role]: Allows you to remove an auto role.\n!iam [role]: Allows you to get a role.\n!iamn [role]: Allows you to remove a role.```");
+    message.react('☑').then(console.log).catch(console.error);
+    message.author.send("```Available commands:\n\n!setrole [role]: Allows you to set a self-assignable role.\n!removerole [role]: Allows you to remove a self-assignable role.\n!iam [role]: Allows you to get a role.\n!iamn [role]: Allows you to remove a role.```");
   }
 
 //
