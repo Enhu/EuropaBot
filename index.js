@@ -27,6 +27,10 @@ loadRoles();
 
 let prefix = process.env.PREFIX;
 var roles = [];
+var enableGW = false;
+var trackingCrew = false;
+var crewMemebers = [];
+var admins = [];
 
 //connects the bot to the discord users
 discordClient.login(process.env.BOT_TOKEN);
@@ -88,7 +92,7 @@ discordClient.on("message", async (message) => {
           console.error(e.stack)
         })
     }else{
-      message.channel.send("```!setrole [role]``` \nAdds roles to the self-assignable roles list."); 
+      message.channel.send("```!setrole [role]\nAdds roles to the self-assignable roles list.```"); 
     }
   }
 
@@ -125,7 +129,7 @@ discordClient.on("message", async (message) => {
           console.error(e.stack)
         })
     }else{
-      message.channel.send("```!removerole [role]``` \nRemoves roles from the self-assignable roles list."); 
+      message.channel.send("```!removerole [role]\nRemoves roles from the self-assignable roles list.```"); 
     }
   }
 
@@ -209,7 +213,95 @@ discordClient.on("message", async (message) => {
 //GBF RELATED CONTENT
 // to-do
 
+if(command === 'enablegw'){ //enables all the tracking commands
+  if(trackingCrew){
+    message.channel.send("Currently tracking a crew, disable by using !disablegw");
+    return;
+  }
+  message.channel.send("Guild War tracking enabled."); //Refer to the Guild War section on !help for commands information.
+  enableGW = true;
+}
 
+if(command === 'disablegw'){ //disables all the tracking commands
+  message.channel.send("Guild War tracking disabled.");
+  enableGW = false;
+  trackingCrew = false;
+  crewMemebers = [];
+  admins = [];
+}
+
+if(enableGW){
+  if(command === 'track'){ //tracks all the people inside a role
+      if(substr != ''){
+          let crewRole = message.guild.roles.find(crewRole => crewRole.name === substr);
+          let adminRole = message.guild.roles.find(adminRole => adminRole.name === 'newRole' ) //not intuitive at all
+          if(crewRole != undefined && crewRole.members.size > 0){
+              for (let member of crewRole.members){
+                  crewMemebers = [];
+                  crewMemebers.push({ id : member[1].id, name : member[1].displayName, honors: 0 }); 
+              }
+              for (let member of adminRole.members){ //don't do this, learn Map properties
+                admins = [];
+                admins.push({ id : member[1].id, name : member[1].displayName }); 
+              }
+              trackingCrew = true;
+              message.channel.send("✅ Now tracking all **" + crewMemebers.length + "** members");    
+          }else{
+              message.channel.send("❌ I didn't find any role called ``" + substr + "``, or no users are using this role.");
+          }
+          
+      }else{
+          message.channel.send("```!track [crewRole] \nStarts tracking all the members inside a role.```");
+      }
+  }
+
+  if(command === 'ss'){
+      if(substr != ''){
+        if(!isNaN(Number(substr)) && crewMemebers.length > 0){
+          let adminRole = message.guild.roles.find(adminRole => adminRole.name === 'newRole' ) 
+          if(adminRole.members.size > admins.length){
+            for (let member of adminRole.members){ //don't do this, learn Map properties
+                admins.push({ id : member[1].id, name : member[1].displayName }); 
+            }
+          }
+
+          message.react('👍').then(() => message.react('👎'));
+          const filter = (reaction, user) => {
+            return ['👍', '👎'].includes(reaction.emoji.name) && admins.some(member => user.id === member.id); //checks for an admin id
+          };
+
+          message.awaitReactions(filter, { max: 1 }) 
+            .then(collected => {
+              const reaction = collected.first();
+
+              if (reaction.emoji.name === '👍') { //add honors to array
+                for (let member of crewMemebers){
+                  if(member.id === message.author.id){
+                    member.honors = member.honors + Number(substr);
+                    crewMemebers.sort((a, b) => (b.honors) - (a.honors));
+                  }
+                }
+                message.reply('your honor entry has been approved.'); //remove? annoying
+              }else {
+                message.reply('your honor entry has been rejected.'); //remove? annoying
+              }
+          })
+        }
+      }
+  }
+
+  if(command === 'results'){
+    if(crewMemebers.length > 0){
+      let result = '';
+      let position = 1;
+      for(let member of crewMemebers){
+        result = result + '[' + position + ']\t  > # ' + member.name + '\n\t\t\t\tTotal Honors: ' + member.honors + '\n'
+        position += 1;
+      }
+      message.channel.send('💬  **Guild Wars results so far...** \n```csharp\n 📋 Rank | Name\n\n' + result + '\n\n```');
+    } 
+  }
+}
 
 });
 
