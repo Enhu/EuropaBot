@@ -234,7 +234,7 @@ if(enableGW){
   if(command === 'track'){ //tracks all the people inside a role
       if(substr != ''){
           let crewRole = message.guild.roles.find(crewRole => crewRole.name === substr);
-          let adminRole = message.guild.roles.find(adminRole => adminRole.name === 'newRole' ) //not intuitive at all
+          let adminRole = message.guild.roles.find(adminRole => adminRole.name === 'socks' ) //not intuitive at all
           if(crewRole != undefined && crewRole.members.size > 0){
               for (let member of crewRole.members){
                   crewMemebers = [];
@@ -258,7 +258,7 @@ if(enableGW){
   if(command === 'ss'){
       if(substr != ''){
         if(!isNaN(Number(substr)) && crewMemebers.length > 0){
-          let adminRole = message.guild.roles.find(adminRole => adminRole.name === 'newRole' ) 
+          let adminRole = message.guild.roles.find(adminRole => adminRole.name === 'socks' ) 
           if(adminRole.members.size > admins.length){
             for (let member of adminRole.members){ //don't do this, learn Map properties
                 admins.push({ id : member[1].id, name : member[1].displayName }); 
