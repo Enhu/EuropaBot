@@ -236,8 +236,8 @@ if(enableGW){
           let crewRole = message.guild.roles.find(crewRole => crewRole.name === substr);
           let adminRole = message.guild.roles.find(adminRole => adminRole.name === 'socks' ) //not intuitive at all
           if(crewRole != undefined && crewRole.members.size > 0){
+              crewMemebers = [];
               for (let member of crewRole.members){
-                  crewMemebers = [];
                   crewMemebers.push({ id : member[1].id, name : member[1].displayName, honors: 0 }); 
               }
               for (let member of adminRole.members){ //don't do this, learn Map properties
