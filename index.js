@@ -88,7 +88,7 @@ client.on("message", async (message) => {
         text: 'SELECT * FROM roles;',
       }
       client.query(query)
-        (async => {
+        (async () => {
           try {
             let table = 'roles';
             let condition = 'rolename';
