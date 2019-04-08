@@ -36,6 +36,7 @@ var enableGW = false;
 var trackingCrew = false;
 var crewMemebers = [];
 var admins = [];
+var sparks = [];
 
 //connects the bot
 discordClient.login(config.token);
@@ -165,7 +166,7 @@ discordClient.on("message", async (message) => {
         }
       }
       if(serverRoles.length > 0){
-        message.channel.send("```!iam [role] \nAdd yourself a role if available.\nAvailable roles are: " + serverRoles.toString() + "```"); 
+        message.channel.send("```csharp\n!iam [role] \nAdd yourself a role if available.\nAvailable roles are: # " + serverRoles.toString().replace(/,/g, ", ") + "\n```"); 
       }else{
         message.channel.send("```!iam [role] \nAdd yourself a role if available.\nThere no available roles to add. Add roles to the list with !setrole [role]```");
       }
@@ -200,7 +201,7 @@ discordClient.on("message", async (message) => {
         }
       }
       if(userRoles.length > 0){
-        message.channel.send("```!iamn [role] \nRemove yourself from a role.\nYour current roles are: " + userRoles.toString() + "```"); 
+        message.channel.send("```csharp\n!iamn [role] \nRemove yourself from a role.\nYour current roles are: # " + userRoles.toString().replace(/,/g, ", ") + "\n```"); 
       }else{
         message.channel.send("```!iamn [role] \nRemove yourself from a role.\nYou don't have any roles I can remove.```");
       }
@@ -276,6 +277,83 @@ if(command === 'playlist'){ //TODO
 //
 //GBF RELATED CONTENT
 //
+
+if(command === 'spark'){
+  loadSparks().then(sparks => {
+    if(args.length > 0){
+      if(args[0] === 'set'){
+        let spark = substr.substring(substr.lastIndexOf(" ") + 1);
+        let sparkargs = spark.split(';');
+        let crystals = Number(sparkargs[0]);
+        let tickets = Number(sparkargs[1]);
+        let tenpart = Number(sparkargs[2]);
+        let totalDraws;
+        if(!isNaN(crystals) && !isNaN(tickets) && !isNaN(tenpart)){
+          crystals = Math.floor(crystals / 300);
+          totalDraws = crystals + tickets + (tenpart * 10);
+          if(sparks.length > 0 && sparks.some(elem => elem.userid === message.author.id)){
+            const text = "UPDATE sparks SET crystals = ($1), tickets = ($2), tenpart = ($3) WHERE userid = '" + message.member.id + "';"
+            const values = [crystals, tickets, tenpart]
+            client.query(text, values)
+              .then(res => {
+                return message.channel.send("✅ Spark set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
+              })
+              .catch(e => {
+                console.error(e.stack)
+              })
+          }else{
+            const text = 'INSERT INTO sparks(userid, serverid, username, crystals, tickets, tenpart) VALUES($1, $2, $3, $4, $5, $6)'
+            const values = [message.author.id, message.guild.id, message.member.user.username , crystals, tickets, tenpart]
+            client.query(text, values)
+              .then(res => {
+                return message.channel.send("✅ Spark set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
+              })
+              .catch(e => {
+                console.error(e.stack)
+              })
+          }    
+        }
+      }
+    
+      /*if(args[0] === 'add'){
+        if(args[1] === 'tix'){
+    
+        }else if(args[1] === 'crystal'){
+    
+        }else if(args[1] === '10p'){
+    
+        }
+      }
+    
+      if(args[0] === 'remove'){
+        if(args[1] === 'tix'){
+    
+        }else if(args[1] === 'crystal'){
+    
+        }else if(args[1] === '10p'){
+          
+        }
+      }*/
+    
+      if(args[0] === 'reset'){
+        
+      }
+    }else{
+        const text = "SELECT * FROM sparks WHERE userid='" + message.member.id +"'";
+        client.query(text)
+          .then(res => {
+            let spark = res.rows;
+            let totalDraws = spark[0].crystals + spark[0].tickets + (spark[0].tenpart * 10);
+            message.channel.send("Your current spark funds are: " + spark[0].crystals + " crystals, " + spark[0].tickets + " ticket(s) and " + spark[0].tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.")
+          })
+          .catch(e => {
+            console.error(e.stack)
+          })
+    }
+  }).catch(e => {
+    console.error(e.stack)
+  });
+}
 
 if(command === 'enablegw'){ //enables all the tracking commands
   if(trackingCrew){
@@ -366,8 +444,23 @@ if(enableGW){
     } 
   }
 }
-
 });
+
+function loadSparks(){
+  return new Promise(resolve => {
+    const text = 'SELECT * FROM sparks;';
+      client.query(text)
+      .then(res => {
+        sparks = res.rows;
+      }).catch(e => {
+        console.error(e.stack)
+      })
+		setTimeout(() => resolve(sparks), 500);
+  });
+  
+  
+
+}
 
 //shows errors on console
 discordClient.on("error", (e) => console.error(e));
