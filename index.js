@@ -1,36 +1,13 @@
-//bot variable declarations
+//const declarations
 const Discord = require("discord.js");
-const discordClient = new Discord.Client();
+const client = new Discord.Client();
 const config = require("./config.json");
+const db = require('./_helpers/database.js')
 const { Client } = require('pg');
 const ytdl = require('ytdl-core');
 
-const client = new Client({
-  connectionString: config.DATABASE_URL,
-  ssl: true,
-});
-
-//connect to postgresql db
-client.connect();
-
-//load server data (roles for now)
-const query = {
-  text: 'SELECT * FROM roles;',
-}
-
-function loadRoles(){
-  client.query(query)
-  .then(res => {
-    roles = res.rows;
-  }).catch(e => {
-    console.error(e.stack)
-  })
-}
-
-loadRoles();
-
 //variable declarations
-let prefix = config.prefix; //optimize for dynamic prefix
+let prefix = config.prefix; //optimize for dynamic prefix SOMEDAY
 var roles = [];
 var enableGW = false;
 var trackingCrew = false;
@@ -38,15 +15,27 @@ var crewMemebers = [];
 var admins = [];
 var sparks = [];
 
+//load server data
+(async () => {
+  try {
+    let table1 = 'roles'
+    let table2 = 'sparks'
+    roles = await db.selectAllDB(table1);
+    sparks = await db.selectAllDB(table2);
+  } catch (error) {
+    console.log(error);
+  }
+})()
+
 //connects the bot
-discordClient.login(config.token);
+client.login(config.token);
 
 //bot logged in successfully and it's ready to be used
-discordClient.on("ready", () => {
-  console.log(`Ready to server in ${discordClient.channels.size} channels on ${discordClient.guilds.size} servers, for a total of ${discordClient.users.size} users.`);
+client.on("ready", () => {
+  console.log(`Ready to server in ${client.channels.size} channels on ${client.guilds.size} servers, for a total of ${client.users.size} users.`);
 });
 
-discordClient.on("message", async (message) => {
+client.on("message", async (message) => {
 
   //any message done by the bot will return nothing
   if(message.author.bot) return;
@@ -57,48 +46,39 @@ discordClient.on("message", async (message) => {
   //for performance purposes
   if (!message.content.startsWith(prefix)) return;
 
-  const args = message.content.slice(prefix.length).trim().split(/ +/g);
-  const command = args.shift().toLowerCase();
-  const substr = message.content.substr((prefix + command + " ").length);
+  const args = message.content.slice(prefix.length).trim().split(/ +/g); //slices the string after the command separated by a space
+  const command = args.shift().toLowerCase(); //self explanatory, lower cases the command
+  const substr = message.content.substr((prefix + command + " ").length); //the whole string after the command
 
 //
 // SELF ASSIGNABLE ROLES
 //
 
-  //adds a role to the list so user can self assign them
+  //adds a role to the self assignable roles list
   if(command === "setrole"){
     if(substr != ''){
-      const query = {
-        text: 'SELECT * FROM roles;',
-      }
-      client.query(query)
-        .then(res => {
-          roles = res.rows;
-          serverID = message.guild.id;
+      (async () =>{
+        try {
+          let table = "roles";
           if(message.guild.roles.find(role => role.name === substr)){
-            if(roles.some(item => item.rolename === substr) && roles.some(item => item.serverid === serverID)){
-                message.channel.send("Role ``" + substr + "`` has already been added to the list.")
+            if(roles.some(item => item.rolename === substr) && roles.some(item => item.serverid === message.guild.id)){ //checks if the role is already on the list
+              return message.channel.send("Role ``" + substr + "`` has already been added to the list.")
             }else{
-              const text = 'INSERT INTO roles(roleName, serverID) VALUES($1, $2)'
-              const values = [substr, serverID]
-              client.query(text, values)
-                .then(res => {
-                  message.channel.send("Role ``" + substr + "`` successfully added to the list.")
-                  loadRoles();
-                })
-                .catch(e => {
-                  console.error(e.stack)
-                })
+              let values = {rolename: substr, serverid: message.guild.id}
+              const response = await db.insertDB(table, values); //adds the role to the db
+              if(response === 'OK'){
+                roles = await db.selectAllDB(table); //reloads all the roles
+                return message.channel.send("Role ``" + substr + "`` successfully added to the list.")    
+              }
             } 
-        }else{
-            message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role on the server before using this command.")
+          }
+        } catch (error) {
+          console.log(error);
         }
-        })
-        .catch(e => {
-          console.error(e.stack)
-        })
+      }
+      )()
     }else{
-      message.channel.send("```!setrole [role]\nAdds roles to the self-assignable roles list.```"); 
+      return message.channel.send("```!setrole [role]\nAdds roles to the self-assignable roles list.```"); 
     }
   }
 
@@ -108,34 +88,31 @@ discordClient.on("message", async (message) => {
         text: 'SELECT * FROM roles;',
       }
       client.query(query)
-        .then(res => {
-          roles = res.rows;
-          serverID = message.guild.id;
-          if(message.guild.roles.find(role => role.name === substr)){
-            if(roles.some(item => item.rolename === substr) && roles.some(item => item.serverid === serverID)){
-              const text = "DELETE FROM roles WHERE roleName='" + substr +"'";
-              const values = [substr];
-              client.query(text)
-                .then(res => {
-                  message.channel.send("Role ``" + substr + "`` successfully deleted from the self-assignable roles list.")
-                  loadRoles();
-                })
-                .catch(e => {
-                  console.error(e.stack)
-                })
-                
-            }else{
-              message.channel.send("Role ``" + substr + "`` doesn't exist on the list. Add it to the self-assignable roles with !setrole [rolename].")
-            } 
-        }else{
-            message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles with !setrole [rolename] before using this command.")
+        (async => {
+          try {
+            let table = 'roles';
+            let condition = 'rolename';
+            if(message.guild.roles.find(role => role.name === substr)){
+              if(roles.some(item => item.rolename === substr) && roles.some(item => item.serverid === message.guild.id)){
+                const response = await db.deleteDB(table, rolename, substr);
+                if(response === 'OK'){
+                  roles = await db.selectAllDB(table);
+                  return message.channel.send("Role ``" + substr + "`` successfully deleted from the self-assignable roles list.")
+                }
+              }else{
+                return message.channel.send("Role ``" + substr + "`` doesn't exist on the list. Add it to the self-assignable roles with !setrole [rolename].")
+              } 
+          }else{
+            return message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles with !setrole [rolename] before using this command.")
+          }
+            
+          } catch (error) {
+            console.log(error);
+          }
         }
-        })
-        .catch(e => {
-          console.error(e.stack)
-        })
+        )()
     }else{
-      message.channel.send("```!removerole [role]\nRemoves roles from the self-assignable roles list.```"); 
+      return message.channel.send("```!removerole [role]\nRemoves roles from the self-assignable roles list.```"); 
     }
   }
 
@@ -144,17 +121,18 @@ discordClient.on("message", async (message) => {
     if(substr != ''){
       let member = message.member;
       if (message.member.roles.find(role => role.name === substr)){
-        message.channel.send("You already have the ``" + substr + "`` role.");
+        return message.channel.send("You already have the ``" + substr + "`` role.");
       }else{
           if(roles.some(item => item.rolename === substr)){ //
               let role = message.guild.roles.find(role => role.name === substr);
               member.addRole(role).catch(console.error);
               message.react('☑').then(console.log).catch(console.error);
+              return;
           }else{
               if(message.guild.roles.find(role => role.name === substr)){
-                  message.channel.send("I don't have permissions to give this role.");
+                  return message.channel.send("I don't have permissions to give this role.");
               }else{
-                  message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles with !setrole [rolename] before using this command.");
+                  return message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles with !setrole [rolename] before using this command.");
               }
           }
       }
@@ -166,9 +144,9 @@ discordClient.on("message", async (message) => {
         }
       }
       if(serverRoles.length > 0){
-        message.channel.send("```csharp\n!iam [role] \nAdd yourself a role if available.\nAvailable roles are: # " + serverRoles.toString().replace(/,/g, ", ") + "\n```"); 
+        return message.channel.send("```csharp\n!iam [role] \nAdd yourself a role if available.\nAvailable roles are: # " + serverRoles.toString().replace(/,/g, ", ") + "\n```"); 
       }else{
-        message.channel.send("```!iam [role] \nAdd yourself a role if available.\nThere no available roles to add. Add roles to the list with !setrole [role]```");
+        return message.channel.send("```!iam [role] \nAdd yourself a role if available.\nThere no available roles to add. Add roles to the list with !setrole [role]```");
       }
       
     }
@@ -183,14 +161,15 @@ discordClient.on("message", async (message) => {
               let role = message.guild.roles.find(role => role.name === substr);
               guildMember.removeRole(role).catch(console.error);
               message.react('☑').then(console.log).catch(console.error);
+              return;
             }else{
-              message.channel.send("You don't have the ``" + substr + "`` role.");
+              return message.channel.send("You don't have the ``" + substr + "`` role.");
             }
       }else{
           if(message.guild.roles.find(role => role.name === substr)){
-              message.channel.send("I don't have permissions to remove this role. Try adding it to the self-assignable roles list using !setrole [rolename]");
+            return message.channel.send("I don't have permissions to remove this role. Try adding it to the self-assignable roles list using !setrole [rolename]");
           }else{
-            message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles list with !setrole [rolename] before using this command.");
+            return message.channel.send("I didn't find any role called ``" + substr + "`` on this server. Create the role and then add it to the self-assignable roles list with !setrole [rolename] before using this command.");
           }
       }
     }else{
@@ -201,9 +180,9 @@ discordClient.on("message", async (message) => {
         }
       }
       if(userRoles.length > 0){
-        message.channel.send("```csharp\n!iamn [role] \nRemove yourself from a role.\nYour current roles are: # " + userRoles.toString().replace(/,/g, ", ") + "\n```"); 
+        return message.channel.send("```csharp\n!iamn [role] \nRemove yourself from a role.\nYour current roles are: # " + userRoles.toString().replace(/,/g, ", ") + "\n```"); 
       }else{
-        message.channel.send("```!iamn [role] \nRemove yourself from a role.\nYou don't have any roles I can remove.```");
+        return message.channel.send("```!iamn [role] \nRemove yourself from a role.\nYou don't have any roles I can remove.```");
       }
       
     }
@@ -279,7 +258,6 @@ if(command === 'playlist'){ //TODO
 //
 
 if(command === 'spark'){
-  loadSparks().then(sparks => {
     if(args.length > 0){
       if(args[0] === 'set'){
         let spark = substr.substring(substr.lastIndexOf(" ") + 1);
@@ -292,29 +270,36 @@ if(command === 'spark'){
           crystals = Math.floor(crystals / 300);
           totalDraws = crystals + tickets + (tenpart * 10);
           if(sparks.length > 0 && sparks.some(elem => elem.userid === message.author.id)){
-            const text = "UPDATE sparks SET crystals = ($1), tickets = ($2), tenpart = ($3) WHERE userid = '" + message.member.id + "';"
-            const values = [crystals, tickets, tenpart]
-            client.query(text, values)
-              .then(res => {
-                return message.channel.send("✅ Spark set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
-              })
-              .catch(e => {
-                console.error(e.stack)
-              })
+            (async () => {
+              try {
+                let table = 'sparks';
+                let values = { crystals: crystals, tickets: tickets, tenpart: tenpart}
+                const response = await db.updateDB(table, message.member.id, values)
+                if(response === 'OK'){
+                  return message.channel.send("✅ Spark set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
+                }
+              } catch (error) {
+                  console.log(error); 
+              }
+            })()
           }else{
-            const text = 'INSERT INTO sparks(userid, serverid, username, crystals, tickets, tenpart) VALUES($1, $2, $3, $4, $5, $6)'
-            const values = [message.author.id, message.guild.id, message.member.user.username , crystals, tickets, tenpart]
-            client.query(text, values)
-              .then(res => {
-                return message.channel.send("✅ Spark set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
-              })
-              .catch(e => {
-                console.error(e.stack)
-              })
+            (async () => { 
+              try {
+                let table = 'sparks';
+                let values = { userid: message.author.id, username: message.member.user.username, crystals: crystals, tickets: tickets, tenpart: tenpart }
+                const response = await db.insertDB(table, values)
+                if(response === 'OK'){
+                  sparks = await db.selectAllDB(table);
+                  return message.channel.send("✅ Spark set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
+                }      
+              }catch (error) {
+                console.log(error);
+              }
+            })()
           }    
         }
       }
-    
+      // TO DO
       /*if(args[0] === 'add'){
         if(args[1] === 'tix'){
     
@@ -336,40 +321,52 @@ if(command === 'spark'){
       }*/
     
       if(args[0] === 'reset'){
-        
+        (async () => {
+          try {
+            let table = 'sparks';
+            let values = { crystals: 0, tickets: 0, tenpart: 0}
+            const response = await db.updateDB(table, message.member.id, values)
+            if(response === 'OK'){
+              return message.channel.send("✅ Spark reset. Your current spark funds are: 0 crystals, 0 ticket(s) and 0 10-part draw(s) for a total of 0 draws.");
+            }
+          } catch (error) {
+              console.log(error); 
+          }
+        })()
       }
     }else{
-        const text = "SELECT * FROM sparks WHERE userid='" + message.member.id +"'";
-        client.query(text)
-          .then(res => {
-            let spark = res.rows;
-            let totalDraws = spark[0].crystals + spark[0].tickets + (spark[0].tenpart * 10);
-            message.channel.send("Your current spark funds are: " + spark[0].crystals + " crystals, " + spark[0].tickets + " ticket(s) and " + spark[0].tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.")
-          })
-          .catch(e => {
-            console.error(e.stack)
-          })
+        (async () => {
+          try {
+            let table = 'sparks'
+            let condition = 'userid';
+            const spark = await db.selectDB(table, condition, message.member.id)
+            if(spark != undefined){
+              let totalDraws = spark[0].crystals + spark[0].tickets + (spark[0].tenpart * 10);
+              return message.channel.send("Your current spark funds are: " + spark[0].crystals + " crystals, " + spark[0].tickets + " ticket(s) and " + spark[0].tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.")
+            }else{
+              return message.channel.send("❎ You haven't set your spark funds yet!");
+            }
+          } catch (error) {
+            console.log(error);
+          }
+        })()
     }
-  }).catch(e => {
-    console.error(e.stack)
-  });
 }
 
 if(command === 'enablegw'){ //enables all the tracking commands
   if(trackingCrew){
-    message.channel.send("Currently tracking a crew, disable by using !disablegw");
-    return;
+    return message.channel.send("Currently tracking a crew, disable by using !disablegw");
   }
-  message.channel.send("Guild War tracking enabled."); //Refer to the Guild War section on !help for commands information.
   enableGW = true;
+  return message.channel.send("Guild War tracking enabled."); //Refer to the Guild War section on !help for commands information.
 }
 
 if(command === 'disablegw'){ //disables all the tracking commands
-  message.channel.send("Guild War tracking disabled.");
   enableGW = false;
   trackingCrew = false;
   crewMemebers = [];
   admins = [];
+  return message.channel.send("Guild War tracking disabled.");
 }
 
 if(enableGW){
@@ -387,13 +384,13 @@ if(enableGW){
                 admins.push({ id : member[1].id, name : member[1].displayName }); 
               }
               trackingCrew = true;
-              message.channel.send("✅ Now tracking all **" + crewMemebers.length + "** members");    
+              return message.channel.send("✅ Now tracking all **" + crewMemebers.length + "** members");    
           }else{
-              message.channel.send("❌ I didn't find any role called ``" + substr + "``, or no users are using this role.");
+              return message.channel.send("❌ I didn't find any role called ``" + substr + "``, or no users are using this role.");
           }
           
       }else{
-          message.channel.send("```!track [crewRole] \nStarts tracking all the members inside a role.```");
+        return message.channel.send("```!track [crewRole] \nStarts tracking all the members inside a role.```");
       }
   }
 
@@ -423,9 +420,9 @@ if(enableGW){
                     crewMemebers.sort((a, b) => (b.honors) - (a.honors));
                   }
                 }
-                message.reply('your honor entry has been approved.'); //remove? annoying
+                return message.reply('your honor entry has been approved.'); //remove? annoying
               }else {
-                message.reply('your honor entry has been rejected.'); //remove? annoying
+                return message.reply('your honor entry has been rejected.'); //remove? annoying
               }
           })
         }
@@ -440,29 +437,13 @@ if(enableGW){
         result = result + '[' + position + ']\t  > # ' + member.name + '\n\t\t\t\tTotal Honors: ' + member.honors + '\n'
         position += 1;
       }
-      message.channel.send('💬  **Guild Wars results so far...** \n```csharp\n 📋 Rank | Name\n\n' + result + '\n\n```');
+      return message.channel.send('💬  **Guild Wars results so far...** \n```csharp\n 📋 Rank | Name\n\n' + result + '\n\n```');
     } 
   }
 }
 });
 
-function loadSparks(){
-  return new Promise(resolve => {
-    const text = 'SELECT * FROM sparks;';
-      client.query(text)
-      .then(res => {
-        sparks = res.rows;
-      }).catch(e => {
-        console.error(e.stack)
-      })
-		setTimeout(() => resolve(sparks), 500);
-  });
-  
-  
-
-}
-
 //shows errors on console
-discordClient.on("error", (e) => console.error(e));
-discordClient.on("warn", (e) => console.warn(e));
-discordClient.on("debug", (e) => console.info(e));
+client.on("error", (e) => console.error(e));
+client.on("warn", (e) => console.warn(e));
+client.on("debug", (e) => console.info(e));
