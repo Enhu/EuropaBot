@@ -51,7 +51,9 @@ module.exports = {
         }
         await client.query(query.text, query.params)
         .then(res => {
-            message = "OK";
+            if(res.rowCount > 0){
+                message = "OK";
+            }           
         })
         .catch(e => {
             console.error(e.stack)
