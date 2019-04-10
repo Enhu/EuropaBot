@@ -84,17 +84,13 @@ client.on("message", async (message) => {
 
   if(command === "removerole"){
     if(substr != ''){
-      const query = {
-        text: 'SELECT * FROM roles;',
-      }
-      client.query(query)
         (async () => {
           try {
             let table = 'roles';
             let condition = 'rolename';
             if(message.guild.roles.find(role => role.name === substr)){
               if(roles.some(item => item.rolename === substr) && roles.some(item => item.serverid === message.guild.id)){
-                const response = await db.deleteDB(table, rolename, substr);
+                const response = await db.deleteDB(table, condition, substr);
                 if(response === 'OK'){
                   roles = await db.selectAllDB(table);
                   return message.channel.send("Role ``" + substr + "`` successfully deleted from the self-assignable roles list.")
@@ -266,53 +262,73 @@ if(command === 'spark'){
         let tickets = Number(sparkargs[1]);
         let tenpart = Number(sparkargs[2]);
         let totalDraws;
+        let table = 'sparks';
         if(!isNaN(crystals) && !isNaN(tickets) && !isNaN(tenpart)){
-          crystals = Math.floor(crystals / 300);
-          totalDraws = crystals + tickets + (tenpart * 10);
-          if(sparks.length > 0 && sparks.some(elem => elem.userid === message.author.id)){
-            (async () => {
-              try {
-                let table = 'sparks';
-                let values = { crystals: crystals, tickets: tickets, tenpart: tenpart}
-                const response = await db.updateDB(table, message.member.id, values)
-                if(response === 'OK'){
-                  return message.channel.send("✅ Spark set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
+          (async () => { 
+            totalDraws = Math.floor(crystals / 300) + tickets + (tenpart * 10);
+            sparks = await db.selectAllDB(table);
+            if(sparks.length > 0 && sparks.some(elem => elem.userid === message.author.id)){          
+                try {
+                  let values = { crystals: crystals, tickets: tickets, tenpart: tenpart};
+                  const response = await db.updateDB(table, message.member.id, values);
+                  if(response === 'OK'){
+                    return message.channel.send("✅ Spark successfully set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
+                  }
+                } catch (error) {
+                    console.log(error); 
+                }   
+            }else{
+                try {
+                  let values = { userid: message.author.id, username: message.member.user.username, crystals: crystals, tickets: tickets, tenpart: tenpart };
+                  const response = await db.insertDB(table, values);
+                  if(response === 'OK'){
+                    return message.channel.send("✅ Spark successfully set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
+                  }      
+                }catch (error) {
+                  console.log(error);
                 }
-              } catch (error) {
-                  console.log(error); 
-              }
-            })()
-          }else{
-            (async () => { 
-              try {
-                let table = 'sparks';
-                let values = { userid: message.author.id, username: message.member.user.username, crystals: crystals, tickets: tickets, tenpart: tenpart }
-                const response = await db.insertDB(table, values)
-                if(response === 'OK'){
-                  sparks = await db.selectAllDB(table);
-                  return message.channel.send("✅ Spark set. Your current spark funds are: " + crystals + " crystals, " + tickets + " ticket(s) and " + tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.");
-                }      
-              }catch (error) {
-                console.log(error);
-              }
-            })()
-          }    
+            }    
+          })()
         }
       }
       // TO DO
-      /*if(args[0] === 'add'){
-        if(args[1] === 'tix'){
-    
-        }else if(args[1] === 'crystal'){
-    
-        }else if(args[1] === '10p'){
-    
-        }
+      if(args[0] === 'add'){
+          (async () => {
+            let table = 'sparks';
+            let condition = 'userid';
+            let values = {};
+            if(isNaN(Number(args[2]))){
+              return;
+            }
+            const spark = await db.selectDB(table, condition, message.member.id);
+            if(spark.length == 0){
+              return message.channel.send("❎ You haven't set your spark funds yet!");;
+            }
+            if(args[1] === 'tix'){              
+              values = { userid: message.author.id, tickets: spark[0].tickets + Number(args[2]) };
+              const response = await db.updateDB(table, message.author.id, values);
+              if(response === 'OK'){
+                return message.channel.send("✅ Added " + args[2] + " ticket(s) to the spark fund.");
+              }
+            }else if(args[1] === 'crystal'){
+              values = { userid: message.author.id, crystals: spark[0].crystals + Number(args[2]) };
+              const response = await db.updateDB(table, message.author.id, values);
+              if(response === 'OK'){
+                return message.channel.send("✅ Added " + args[2] + " crystal(s) to the spark fund.");
+              }
+            }else if(args[1] === '10p'){
+              values = { userid: message.author.id, tenpart: spark[0].tenpart + Number(args[2]) };
+              const response = await db.updateDB(table, message.author.id, values);
+              if(response === 'OK'){
+                return message.channel.send("✅ Added " + Number(args[2]) + " 10-part(s) to the spark fund.");
+              }       
+            }
+        })()
       }
-    
-      if(args[0] === 'remove'){
+      /* maybe do in the future
+      if(args[0] === 'sub'){
         if(args[1] === 'tix'){
-    
+          
         }else if(args[1] === 'crystal'){
     
         }else if(args[1] === '10p'){
@@ -324,10 +340,12 @@ if(command === 'spark'){
         (async () => {
           try {
             let table = 'sparks';
-            let values = { crystals: 0, tickets: 0, tenpart: 0}
-            const response = await db.updateDB(table, message.member.id, values)
+            let values = { crystals: 0, tickets: 0, tenpart: 0};
+            const response = await db.updateDB(table, message.member.id, values);
             if(response === 'OK'){
-              return message.channel.send("✅ Spark reset. Your current spark funds are: 0 crystals, 0 ticket(s) and 0 10-part draw(s) for a total of 0 draws.");
+              return message.channel.send("✅ Spark succesfully reset.");
+            }else{
+              return message.channel.send("❎ You haven't set your spark funds yet!");
             }
           } catch (error) {
               console.log(error); 
@@ -339,13 +357,12 @@ if(command === 'spark'){
           try {
             let table = 'sparks'
             let condition = 'userid';
-            const spark = await db.selectDB(table, condition, message.member.id)
-            if(spark != undefined){
-              let totalDraws = spark[0].crystals + spark[0].tickets + (spark[0].tenpart * 10);
-              return message.channel.send("Your current spark funds are: " + spark[0].crystals + " crystals, " + spark[0].tickets + " ticket(s) and " + spark[0].tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws.")
-            }else{
+            const spark = await db.selectDB(table, condition, message.member.id);
+            if(spark.length == 0){
               return message.channel.send("❎ You haven't set your spark funds yet!");
             }
+            let totalDraws = Math.floor(spark[0].crystals / 300) + spark[0].tickets + (spark[0].tenpart * 10);
+            return message.channel.send("Your current spark funds are: " + spark[0].crystals + " crystals, " + spark[0].tickets + " ticket(s) and " + spark[0].tenpart + " 10-part draw(s) for a total of " + totalDraws + " draws."); 
           } catch (error) {
             console.log(error);
           }
@@ -355,7 +372,7 @@ if(command === 'spark'){
 
 if(command === 'enablegw'){ //enables all the tracking commands
   if(trackingCrew){
-    return message.channel.send("Currently tracking a crew, disable by using !disablegw");
+    return message.channel.send("Currently tracking a crew, disable by using !disablegw.");
   }
   enableGW = true;
   return message.channel.send("Guild War tracking enabled."); //Refer to the Guild War section on !help for commands information.
@@ -386,7 +403,7 @@ if(enableGW){
               trackingCrew = true;
               return message.channel.send("✅ Now tracking all **" + crewMemebers.length + "** members");    
           }else{
-              return message.channel.send("❌ I didn't find any role called ``" + substr + "``, or no users are using this role.");
+              return message.channel.send("❎ I didn't find any role called ``" + substr + "``, or no users are using this role.");
           }
           
       }else{
