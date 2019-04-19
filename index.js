@@ -3,6 +3,7 @@ const Discord = require("discord.js");
 const client = new Discord.Client();
 const config = require("./config.json");
 const db = require('./_helpers/database.js')
+const sheet = require('./_helpers/googleapi.js')
 const { Client } = require('pg');
 const ytdl = require('ytdl-core');
 
@@ -456,6 +457,12 @@ if(enableGW){
       }
       return message.channel.send('💬  **Guild Wars results so far...** \n```csharp\n 📋 Rank | Name\n\n' + result + '\n\n```');
     } 
+  }
+
+  if(command === 'test'){
+    sheet.authorize().then( auth => {
+      sheet.listMajors(auth);
+    })
   }
 }
 });
